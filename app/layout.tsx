@@ -3,6 +3,7 @@ import { Nunito, Space_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { UserProvider } from '@/lib/user-context'
+import { AuthProvider } from '@/lib/auth-context'
 import './globals.css'
 
 const nunito = Nunito({ 
@@ -52,9 +53,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <UserProvider>
-            {children}
-          </UserProvider>
+          <AuthProvider>
+            <UserProvider>
+              {children}
+            </UserProvider>
+          </AuthProvider>
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
