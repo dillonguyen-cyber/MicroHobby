@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,35 +12,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Leaf, 
-  ArrowLeft, 
-  Camera, 
-  Bell, 
-  Moon, 
-  Globe, 
-  Shield, 
+import {
+  Leaf,
+  ArrowLeft,
+  Camera,
+  Bell,
+  Moon,
+  Globe,
+  Shield,
   Flame,
   Trophy,
   Clock,
   Heart,
   LogOut,
-  Save
+  Save,
 } from "lucide-react";
-
-interface UserData {
-  name: string;
-  email: string;
-  joinedAt: string;
-  streak: number;
-  totalHobbies: number;
-  favorites: string[];
-  avatar?: string;
-}
+import { useAuth } from "@/lib/auth-context";
+import { useUser } from "@/lib/user-context";
 
 export default function AccountPage() {
-  const [user, setUser] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { user, signOut, updateProfile, isLoading: authLoading } = useAuth();
+  const { progress } = useUser();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [settings, setSettings] = useState({
     name: "",
@@ -51,68 +48,50 @@ export default function AccountPage() {
   });
 
   useEffect(() => {
-    // Load user data from localStorage (demo)
-    const userData = localStorage.getItem("microhobby_user");
-    if (userData) {
-      const parsed = JSON.parse(userData);
-      setUser(parsed);
-      setSettings((prev) => ({
-        ...prev,
-        name: parsed.name,
-        email: parsed.email,
-      }));
-    } else {
-      // Create demo user if none exists
-      const demoUser: UserData = {
-        name: "Creative Explorer",
-        email: "explorer@microhobby.app",
-        joinedAt: new Date().toISOString(),
-        streak: 5,
-        totalHobbies: 12,
-        favorites: ["origami-crane", "hand-yoga", "friendship-bracelet"],
-      };
-      localStorage.setItem("microhobby_user", JSON.stringify(demoUser));
-      setUser(demoUser);
-      setSettings((prev) => ({
-        ...prev,
-        name: demoUser.name,
-        email: demoUser.email,
-      }));
+    if (user) {
+      setSettings((prev) => ({ ...prev, name: user.name, email: user.email }));
+    } else if (!authLoading) {
+      router.push("/login");
     }
-  }, []);
+  }, [user, authLoading, router]);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const photo = ev.target?.result as string;
+      updateProfile({ photo });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSaveProfile = async () => {
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    
-    if (user) {
-      const updatedUser = { ...user, name: settings.name, email: settings.email };
-      localStorage.setItem("microhobby_user", JSON.stringify(updatedUser));
-      setUser(updatedUser);
-    }
-    
-    setIsLoading(false);
+    setIsSaving(true);
+    await new Promise((r) => setTimeout(r, 600));
+    updateProfile({ name: settings.name, email: settings.email });
+    setIsSaving(false);
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 2000);
   };
 
-  const getInitials = (name: string) => {
-    return name
+  const handleSignOut = () => {
+    signOut();
+    router.push("/");
+  };
+
+  const getInitials = (name: string) =>
+    name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase()
       .slice(0, 2);
-  };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
-    });
-  };
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
-  if (!user) {
+  if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -139,22 +118,33 @@ export default function AccountPage() {
               <span className="font-bold text-foreground">Account Settings</span>
             </div>
           </div>
-          
-          <Button variant="outline" size="sm" className="text-muted-foreground">
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={handleSignOut}
+          >
             <LogOut className="h-4 w-4 mr-2" />
             Sign out
           </Button>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container max-w-4xl mx-auto px-4 md:px-6 py-8">
         {/* Profile Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8">
           <div className="relative">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoChange}
+            />
             <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+              <AvatarImage src={user.photo ?? undefined} />
+              <AvatarFallback className="text-2xl bg-primary/10 text-primary">
                 {getInitials(user.name)}
               </AvatarFallback>
             </Avatar>
@@ -162,12 +152,13 @@ export default function AccountPage() {
               size="icon"
               variant="secondary"
               className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-md"
+              onClick={() => fileRef.current?.click()}
             >
               <Camera className="h-4 w-4" />
               <span className="sr-only">Change photo</span>
             </Button>
           </div>
-          
+
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-foreground">{user.name}</h1>
             <p className="text-muted-foreground">{user.email}</p>
@@ -176,16 +167,15 @@ export default function AccountPage() {
             </p>
           </div>
 
-          {/* Stats Badges */}
           <div className="flex gap-3">
             <div className="flex items-center gap-2 rounded-full bg-hobby-yellow/20 px-4 py-2">
               <Flame className="h-5 w-5 text-hobby-coral" />
-              <span className="font-bold">{user.streak}</span>
+              <span className="font-bold">{progress.currentStreak}</span>
               <span className="text-sm text-muted-foreground hidden sm:inline">streak</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2">
               <Trophy className="h-5 w-5 text-primary" />
-              <span className="font-bold">{user.totalHobbies}</span>
+              <span className="font-bold">{progress.hobbiesCompleted.length}</span>
               <span className="text-sm text-muted-foreground hidden sm:inline">hobbies</span>
             </div>
           </div>
@@ -204,9 +194,7 @@ export default function AccountPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
-                <CardDescription>
-                  Update your personal details here
-                </CardDescription>
+                <CardDescription>Update your personal details here</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -215,9 +203,7 @@ export default function AccountPage() {
                     <Input
                       id="name"
                       value={settings.name}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, name: e.target.value }))
-                      }
+                      onChange={(e) => setSettings((prev) => ({ ...prev, name: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -226,21 +212,18 @@ export default function AccountPage() {
                       id="email"
                       type="email"
                       value={settings.email}
-                      onChange={(e) =>
-                        setSettings((prev) => ({ ...prev, email: e.target.value }))
-                      }
+                      onChange={(e) => setSettings((prev) => ({ ...prev, email: e.target.value }))}
                     />
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-4">
-                  <Button onClick={handleSaveProfile} disabled={isLoading}>
-                    {isLoading ? (
+                  <Button onClick={handleSaveProfile} disabled={isSaving}>
+                    {isSaving ? (
                       "Saving..."
                     ) : isSaved ? (
                       <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Saved!
+                        <Save className="h-4 w-4 mr-2" /> Saved!
                       </>
                     ) : (
                       "Save Changes"
@@ -255,10 +238,30 @@ export default function AccountPage() {
 
             <Card>
               <CardHeader>
+                <CardTitle>Profile Photo</CardTitle>
+                <CardDescription>Upload a photo to personalise your account</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center gap-6">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={user.photo ?? undefined} />
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {getInitials(user.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-2">
+                  <Button variant="outline" onClick={() => fileRef.current?.click()}>
+                    <Camera className="h-4 w-4 mr-2" />
+                    {user.photo ? "Change photo" : "Upload photo"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">JPG, PNG or GIF — max 5MB</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Password</CardTitle>
-                <CardDescription>
-                  Change your password to keep your account secure
-                </CardDescription>
+                <CardDescription>Change your password to keep your account secure</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -285,56 +288,41 @@ export default function AccountPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Notifications
+                  <Bell className="h-5 w-5" /> Notifications
                 </CardTitle>
-                <CardDescription>
-                  Manage how you receive updates and reminders
-                </CardDescription>
+                <CardDescription>Manage how you receive updates and reminders</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Push Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive notifications about new hobbies and challenges
-                    </p>
+                    <p className="text-sm text-muted-foreground">Receive notifications about new hobbies</p>
                   </div>
                   <Switch
                     checked={settings.notifications}
-                    onCheckedChange={(checked) =>
-                      setSettings((prev) => ({ ...prev, notifications: checked }))
-                    }
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, notifications: v }))}
                   />
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Daily Reminders</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get a gentle nudge to try your daily hobby
-                    </p>
+                    <p className="text-sm text-muted-foreground">Get a gentle nudge for your daily hobby</p>
                   </div>
                   <Switch
                     checked={settings.dailyReminders}
-                    onCheckedChange={(checked) =>
-                      setSettings((prev) => ({ ...prev, dailyReminders: checked }))
-                    }
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, dailyReminders: v }))}
                   />
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Weekly Digest</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive a summary of your weekly progress
-                    </p>
+                    <p className="text-sm text-muted-foreground">Summary of your weekly progress</p>
                   </div>
                   <Switch
                     checked={settings.weeklyDigest}
-                    onCheckedChange={(checked) =>
-                      setSettings((prev) => ({ ...prev, weeklyDigest: checked }))
-                    }
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, weeklyDigest: v }))}
                   />
                 </div>
               </CardContent>
@@ -343,29 +331,21 @@ export default function AccountPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Appearance
+                  <Globe className="h-5 w-5" /> Appearance
                 </CardTitle>
-                <CardDescription>
-                  Customize how MicroHobby looks for you
-                </CardDescription>
+                <CardDescription>Customize how MicroHobby looks</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="flex items-center gap-2">
-                      <Moon className="h-4 w-4" />
-                      Dark Mode
+                      <Moon className="h-4 w-4" /> Dark Mode
                     </Label>
-                    <p className="text-sm text-muted-foreground">
-                      Switch to dark theme
-                    </p>
+                    <p className="text-sm text-muted-foreground">Switch to dark theme</p>
                   </div>
                   <Switch
                     checked={settings.darkMode}
-                    onCheckedChange={(checked) =>
-                      setSettings((prev) => ({ ...prev, darkMode: checked }))
-                    }
+                    onCheckedChange={(v) => setSettings((p) => ({ ...p, darkMode: v }))}
                   />
                 </div>
               </CardContent>
@@ -374,20 +354,15 @@ export default function AccountPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Privacy
+                  <Shield className="h-5 w-5" /> Privacy
                 </CardTitle>
-                <CardDescription>
-                  Control your privacy settings
-                </CardDescription>
+                <CardDescription>Control your privacy settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Public Profile</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Allow others to see your hobby journey
-                    </p>
+                    <p className="text-sm text-muted-foreground">Allow others to see your hobby journey</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
@@ -395,12 +370,23 @@ export default function AccountPage() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>Show Streak</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display your streak on your public profile
-                    </p>
+                    <p className="text-sm text-muted-foreground">Display your streak on your profile</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card className="border-red-200 dark:border-red-900">
+              <CardHeader>
+                <CardTitle className="text-red-600">Sign Out</CardTitle>
+                <CardDescription>Sign out of your MicroHobby account on this device</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="destructive" onClick={handleSignOut}>
+                  <LogOut className="h-4 w-4 mr-2" /> Sign out
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -415,7 +401,7 @@ export default function AccountPage() {
                       <Flame className="h-6 w-6 text-hobby-coral" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold">{user.streak}</p>
+                      <p className="text-2xl font-bold">{progress.currentStreak}</p>
                       <p className="text-sm text-muted-foreground">Day Streak</p>
                     </div>
                   </div>
@@ -429,7 +415,7 @@ export default function AccountPage() {
                       <Trophy className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold">{user.totalHobbies}</p>
+                      <p className="text-2xl font-bold">{progress.hobbiesCompleted.length}</p>
                       <p className="text-sm text-muted-foreground">Hobbies Tried</p>
                     </div>
                   </div>
@@ -443,7 +429,7 @@ export default function AccountPage() {
                       <Clock className="h-6 w-6 text-hobby-blue" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold">{user.totalHobbies * 20}</p>
+                      <p className="text-2xl font-bold">{progress.totalMinutes}</p>
                       <p className="text-sm text-muted-foreground">Minutes Spent</p>
                     </div>
                   </div>
@@ -457,7 +443,7 @@ export default function AccountPage() {
                       <Heart className="h-6 w-6 text-hobby-pink" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold">{user.favorites.length}</p>
+                      <p className="text-2xl font-bold">{progress.favorites.length}</p>
                       <p className="text-sm text-muted-foreground">Favorites</p>
                     </div>
                   </div>
@@ -468,24 +454,22 @@ export default function AccountPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Achievement Badges</CardTitle>
-                <CardDescription>
-                  Milestones you have reached on your hobby journey
-                </CardDescription>
+                <CardDescription>Milestones you have reached on your hobby journey</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-3">
-                  <Badge variant="secondary" className="px-4 py-2 text-sm">
-                    First Hobby
-                  </Badge>
-                  <Badge variant="secondary" className="px-4 py-2 text-sm">
-                    3-Day Streak
-                  </Badge>
-                  {user.streak >= 7 && (
+                  {progress.hobbiesCompleted.length >= 1 && (
+                    <Badge variant="secondary" className="px-4 py-2 text-sm">First Hobby</Badge>
+                  )}
+                  {progress.currentStreak >= 3 && (
+                    <Badge variant="secondary" className="px-4 py-2 text-sm">3-Day Streak</Badge>
+                  )}
+                  {progress.currentStreak >= 7 && (
                     <Badge variant="secondary" className="px-4 py-2 text-sm bg-hobby-yellow/20 text-foreground">
                       Week Warrior
                     </Badge>
                   )}
-                  {user.totalHobbies >= 10 && (
+                  {progress.hobbiesCompleted.length >= 10 && (
                     <Badge variant="secondary" className="px-4 py-2 text-sm bg-primary/20 text-foreground">
                       Hobbyist
                     </Badge>
