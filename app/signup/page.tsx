@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Leaf, ArrowRight, Sparkles } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Leaf, ArrowRight, Sparkles, Camera } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signUp } = useAuth();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -21,25 +27,43 @@ export default function SignupPage() {
     agreeToTerms: false,
   });
 
+  const initials = formData.name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setPhoto(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     setIsLoading(true);
-    
-    // Simulate account creation
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Store user data in localStorage for demo purposes
-    localStorage.setItem("microhobby_user", JSON.stringify({
-      name: formData.name,
-      email: formData.email,
-      joinedAt: new Date().toISOString(),
-      streak: 0,
-      totalHobbies: 0,
-      favorites: [],
-    }));
-    
-    setIsLoading(false);
-    router.push("/account");
+    try {
+      await signUp(formData.name.trim(), formData.email.trim(), formData.password, photo);
+      router.push("/account");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,7 +73,6 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="container max-w-6xl mx-auto flex h-16 items-center px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -61,31 +84,57 @@ export default function SignupPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          {/* Welcome Message */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 mb-4">
               <Sparkles className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-primary">Start your creative journey</span>
             </div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Create your account</h1>
-            <p className="text-muted-foreground">
-              Join thousands discovering new hobbies every day
-            </p>
+            <p className="text-muted-foreground">Join thousands discovering new hobbies every day</p>
           </div>
 
-          {/* Signup Card */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl">Sign up</CardTitle>
-              <CardDescription>
-                Enter your details to create your MicroHobby account
-              </CardDescription>
+              <CardDescription>Enter your details to create your MicroHobby account</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+
+                {/* Photo upload */}
+                <div className="flex flex-col items-center gap-2 pb-2">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                  <div className="relative">
+                    <Avatar className="h-20 w-20 border-4 border-background shadow-md">
+                      <AvatarImage src={photo ?? undefined} />
+                      <AvatarFallback className="text-xl bg-primary/10 text-primary">
+                        {initials || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute bottom-0 right-0 h-7 w-7 rounded-full shadow"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      <span className="sr-only">Upload photo</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {photo ? "Photo added ✓" : "Add a profile photo (optional)"}
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <Input
@@ -150,15 +199,17 @@ export default function SignupPage() {
                   />
                   <Label htmlFor="terms" className="text-sm text-muted-foreground leading-tight">
                     I agree to the{" "}
-                    <Link href="#" className="text-primary hover:underline">
-                      Terms of Service
-                    </Link>{" "}
+                    <Link href="#" className="text-primary hover:underline">Terms of Service</Link>{" "}
                     and{" "}
-                    <Link href="#" className="text-primary hover:underline">
-                      Privacy Policy
-                    </Link>
+                    <Link href="#" className="text-primary hover:underline">Privacy Policy</Link>
                   </Label>
                 </div>
+
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
 
                 <Button
                   type="submit"
@@ -170,8 +221,7 @@ export default function SignupPage() {
                     "Creating account..."
                   ) : (
                     <>
-                      Get Started
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      Get Started <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
@@ -188,7 +238,6 @@ export default function SignupPage() {
             </CardContent>
           </Card>
 
-          {/* Features Preview */}
           <div className="mt-8 grid grid-cols-3 gap-4 text-center">
             <div className="space-y-1">
               <div className="text-2xl font-bold text-primary">500+</div>
