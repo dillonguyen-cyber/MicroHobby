@@ -2,9 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Menu, Flame, Search, Leaf, User, Calendar } from "lucide-react";
+import { Menu, Flame, Search, Leaf, User, Calendar, LogOut, Settings } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 interface HeaderProps {
   currentStreak: number;
@@ -12,6 +22,8 @@ interface HeaderProps {
 
 export function Header({ currentStreak }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { user, signOut } = useAuth();
+  const router = useRouter();
 
   const navLinks = [
     { href: "/", label: "Home" },
@@ -19,6 +31,19 @@ export function Header({ currentStreak }: HeaderProps) {
     { href: "/explore", label: "Explore" },
     { href: "/tutorials", label: "Tutorials" },
   ];
+
+  const initials = user?.name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() ?? "";
+
+  const handleSignOut = () => {
+    signOut();
+    router.push("/");
+    setIsOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -31,7 +56,7 @@ export function Header({ currentStreak }: HeaderProps) {
           <span className="text-xl font-bold text-foreground">MicroHobby</span>
         </Link>
 
-        {/* Desktop Nav - Centered */}
+        {/* Desktop Nav */}
         <nav className="hidden md:flex items-center justify-center gap-6 flex-1">
           {navLinks.map((link) => (
             <Link
@@ -44,7 +69,7 @@ export function Header({ currentStreak }: HeaderProps) {
           ))}
         </nav>
 
-        {/* Right side - Streak & Actions */}
+        {/* Right side */}
         <div className="flex items-center gap-3">
           {/* Streak Badge */}
           <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-hobby-yellow/20 px-3 py-1.5">
@@ -65,12 +90,48 @@ export function Header({ currentStreak }: HeaderProps) {
             </Button>
           </Link>
 
-          <Link href="/account" className="hidden md:flex">
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-              <span className="sr-only">Account</span>
-            </Button>
-          </Link>
+          {/* Desktop: user avatar dropdown or sign in */}
+          <div className="hidden md:flex">
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="rounded-full p-0 h-9 w-9">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={user.photo ?? undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium truncate">{user.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/account" className="cursor-pointer">
+                      <Settings className="h-4 w-4 mr-2" /> Account Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600 cursor-pointer">
+                    <LogOut className="h-4 w-4 mr-2" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">Sign in</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button size="sm">Sign up</Button>
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* Mobile Menu */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -82,10 +143,34 @@ export function Header({ currentStreak }: HeaderProps) {
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px]">
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <SheetDescription className="sr-only">
-                Navigate through MicroHobby sections and view your streak progress.
-              </SheetDescription>
+              <SheetDescription className="sr-only">Navigate through MicroHobby sections.</SheetDescription>
+
               <div className="flex flex-col gap-6 pt-6">
+                {/* Mobile user info or auth buttons */}
+                {user ? (
+                  <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user.photo ?? undefined} />
+                      <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <Link href="/login" onClick={() => setIsOpen(false)}>
+                      <Button variant="outline" className="w-full">Sign in</Button>
+                    </Link>
+                    <Link href="/signup" onClick={() => setIsOpen(false)}>
+                      <Button className="w-full">Sign up</Button>
+                    </Link>
+                  </div>
+                )}
+
                 {/* Mobile Streak */}
                 <div className="flex items-center gap-2 rounded-xl bg-hobby-yellow/20 p-3">
                   <Flame className="h-5 w-5 text-hobby-coral" />
@@ -106,20 +191,23 @@ export function Header({ currentStreak }: HeaderProps) {
                       {link.label}
                     </Link>
                   ))}
-                  <Link
-                    href="/account"
-                    onClick={() => setIsOpen(false)}
-                    className="text-lg font-medium text-foreground hover:text-primary transition-colors"
-                  >
-                    Account
-                  </Link>
-                  <Link
-                    href="/signup"
-                    onClick={() => setIsOpen(false)}
-                    className="text-lg font-medium text-primary hover:text-primary/80 transition-colors"
-                  >
-                    Sign Up
-                  </Link>
+                  {user && (
+                    <Link
+                      href="/account"
+                      onClick={() => setIsOpen(false)}
+                      className="text-lg font-medium text-foreground hover:text-primary transition-colors"
+                    >
+                      Account
+                    </Link>
+                  )}
+                  {user && (
+                    <button
+                      onClick={handleSignOut}
+                      className="text-lg font-medium text-red-600 hover:text-red-500 transition-colors text-left"
+                    >
+                      Sign out
+                    </button>
+                  )}
                 </nav>
               </div>
             </SheetContent>
