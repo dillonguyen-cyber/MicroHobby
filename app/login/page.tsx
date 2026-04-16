@@ -7,41 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Leaf, ArrowRight } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { signIn } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    rememberMe: false,
-  });
+  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ email: "", password: "" });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
-    
-    // Simulate login
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    // Check if user exists in localStorage (demo)
-    const existingUser = localStorage.getItem("microhobby_user");
-    if (!existingUser) {
-      // Create a demo user
-      localStorage.setItem("microhobby_user", JSON.stringify({
-        name: "Demo User",
-        email: formData.email,
-        joinedAt: new Date().toISOString(),
-        streak: 3,
-        totalHobbies: 7,
-        favorites: ["origami-crane", "hand-yoga"],
-      }));
+    try {
+      await signIn(formData.email, formData.password);
+      router.push("/");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
-    router.push("/");
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +38,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="container max-w-6xl mx-auto flex h-16 items-center px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -63,18 +49,13 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
-          {/* Welcome Back Message */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back!</h1>
-            <p className="text-muted-foreground">
-              Continue your creative journey
-            </p>
+            <p className="text-muted-foreground">Continue your creative journey</p>
           </div>
 
-          {/* Login Card */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl">Sign in</CardTitle>
@@ -98,15 +79,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Link
-                      href="#"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
+                  <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     name="password"
@@ -118,31 +91,18 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="remember"
-                    checked={formData.rememberMe}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, rememberMe: checked as boolean }))
-                    }
-                  />
-                  <Label htmlFor="remember" className="text-sm text-muted-foreground">
-                    Remember me for 30 days
-                  </Label>
-                </div>
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 dark:bg-red-950/20 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  disabled={isLoading}
-                >
+                <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
                   {isLoading ? (
                     "Signing in..."
                   ) : (
                     <>
-                      Sign in
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      Sign in <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
                 </Button>
